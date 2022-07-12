@@ -4,6 +4,6 @@ namespace LoanApplicant.Services
 {
     public interface ILoanServices
     {
-        LoanResult CheckValidation(Models.LoanApplicant loanApplicant); 
+        Task<LoanResult> CheckValidationAsync(Models.LoanApplicant loanApplicant); 
     }
 }

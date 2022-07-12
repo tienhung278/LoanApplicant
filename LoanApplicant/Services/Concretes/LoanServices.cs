@@ -1,4 +1,5 @@
 ﻿using LoanApplicant.Models;
+using Microsoft.Extensions.Caching.Memory;
 using System.Text.RegularExpressions;
 
 namespace LoanApplicant.Services.Concretes
@@ -12,21 +13,24 @@ namespace LoanApplicant.Services.Concretes
         private const string CITIZENSHIP_PERMANENT_RESIDENT = "Permanent Resident";
 
         private readonly IConfiguration configuration;
+        private readonly IMemoryCache memoryCache;
         private readonly long loanAmountMax;
         private readonly long loanAmountMin;
         private readonly int timeTradingMax;
         private readonly int timeTradingMin;
+        private static readonly SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
-        public LoanServices(IConfiguration configuration)
+        public LoanServices(IConfiguration configuration, IMemoryCache memoryCache)
         {
             this.configuration = configuration;
+            this.memoryCache = memoryCache;
             this.loanAmountMax = this.configuration.GetValue<long>("LoanAmount:Max");
             this.loanAmountMin = this.configuration.GetValue<long>("LoanAmount:Min");
             this.timeTradingMax = this.configuration.GetValue<int>("TimeTrading:Max");
             this.timeTradingMin = this.configuration.GetValue<int>("TimeTrading:Mix");
         }
 
-        public LoanResult CheckValidation(Models.LoanApplicant loanApplicant)
+        public async Task<LoanResult> CheckValidationAsync(Models.LoanApplicant loanApplicant)
         {
             var validationResults = new List<ValidationResult>();
 
@@ -94,7 +98,7 @@ namespace LoanApplicant.Services.Concretes
             }
             else
             {
-                bool isValid = CheckBusinessNumberValidationAsync(loanApplicant.BusinessNumber).Result;
+                bool isValid = await CheckBusinessNumberValidationAsync(loanApplicant.BusinessNumber);
                 if (!isValid)
                 {
                     validationResults.Add(new ValidationResult
@@ -202,11 +206,36 @@ namespace LoanApplicant.Services.Concretes
             return loanResult;
         }
 
-        private Task<bool> CheckBusinessNumberValidationAsync(long businessNumber)
+        private async Task<bool> CheckBusinessNumberValidationAsync(long businessNumber)
         {
-            Thread.Sleep(3000);
+            bool isAvailable = memoryCache.TryGetValue(businessNumber, out bool isValid);
+            if (isAvailable)
+            {
+                return isValid;
+            }
 
-            return Task.FromResult(true);
+            try
+            {
+                await semaphore.WaitAsync();
+                isAvailable = memoryCache.TryGetValue(businessNumber, out isValid);
+                if (isAvailable)
+                {
+                    return isValid;
+                }
+                Thread.Sleep(3000);
+                isValid = true;
+                memoryCache.Set(businessNumber, isValid);
+            }
+            catch
+            {
+                throw;
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+
+            return isValid;
         }
     }
 }

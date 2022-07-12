@@ -3,7 +3,7 @@
     public class LoanResult
     {
         public string Decision { get; set; }
-        public ValidationResult[] ValidationResults { get; set; }
+        public ValidationResult[]? ValidationResults { get; set; }
 
         public LoanResult()
         {

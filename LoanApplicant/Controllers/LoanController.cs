@@ -18,9 +18,9 @@ namespace LoanApplicant.Controllers
         }
 
         [HttpPost]
-        public IActionResult Post(Models.LoanApplicant value)
+        public async Task<IActionResult> Post(Models.LoanApplicant value)
         {
-            var result = loanServices.CheckValidation(value);
+            var result = await loanServices.CheckValidationAsync(value);
 
             return Ok(result);
         }
